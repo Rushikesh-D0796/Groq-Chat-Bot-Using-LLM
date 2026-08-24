@@ -77,7 +77,7 @@ if uploaded_pdf is not None:
 
     # Step B: Build Vector Store
     vector_store = FAISS.from_documents(chunks, embeddings)
-    retriever = vector_store.as_retriever(search_kwargs={"k": 2})
+    retriever = vector_store.as_retriever(search_kwargs={"k": 5})
 
     # Step C: Render Chat History
     for msg in st.session_state.messages:
