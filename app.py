@@ -7,24 +7,27 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_groq import ChatGroq
 
-# 1. Secret Key Management (Streamlit Cloud + Local fallback)
+# 1. Safe Secret Key Management (Hugging Face Spaces + Streamlit Cloud + Local .env)
 load_dotenv()
 
-groq_key = None
-if "GROQ_API_KEY" in st.secrets:
-    groq_key = st.secrets["GROQ_API_KEY"]
-else:
-    groq_key = os.getenv("GROQ_API_KEY")
+# Check os.environ first (Hugging Face Spaces and local .env)
+groq_key = os.getenv("GROQ_API_KEY")
+
+# Safe fallback for Streamlit Cloud without raising FileNotFoundError
+if not groq_key:
+    try:
+        if "GROQ_API_KEY" in st.secrets:
+            groq_key = st.secrets["GROQ_API_KEY"]
+    except Exception:
+        groq_key = None
 
 st.set_page_config(page_title="PDF QA Assistant", page_icon="📚")
 st.title("📚 PDF Question Answering with Groq")
 st.write("Upload a PDF file and ask any question from it!")
 
 if not groq_key:
-    st.error("GROQ_API_KEY not found! Set it in Streamlit Cloud Secrets or your local .env file.")
+    st.error("GROQ_API_KEY not found! Please add it to your Hugging Face Space Secrets or local .env file.")
     st.stop()
 
 # 2. Cached HuggingFace Embeddings Model
@@ -36,15 +39,19 @@ embeddings = get_embedding_model()
 
 # 3. Model Selection
 default_models = [
+    "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
     "llama3-70b-8192",
-    "llama-3.3-70b-versatile",
     "mixtral-8x7b-32768"
 ]
 
+groq_client = Groq(api_key=groq_key)
+
 try:
-    groq_client = Groq(api_key=groq_key)
-    fetched_models = [m.id for m in groq_client.models.list().data if "whisper" not in m.id and "vision" not in m.id]
+    fetched_models = [
+        m.id for m in groq_client.models.list().data 
+        if "whisper" not in m.id and "vision" not in m.id and "guard" not in m.id
+    ]
     model_list = fetched_models if fetched_models else default_models
 except Exception:
     model_list = default_models
@@ -96,34 +103,28 @@ if uploaded_pdf is not None:
         matching_docs = retriever.invoke(user_question)
         context_text = "\n\n".join([doc.page_content for doc in matching_docs]) if matching_docs else "No context found."
 
-        # Step F: Universal Prompt (Avoids system-role rejection on Groq models)
-        prompt_template = ChatPromptTemplate.from_messages([
-            (
-                "human",
-                "You are a strict QA assistant. Answer the user question based ONLY on the provided context below.\n"
-                "If the answer is not in the context, say 'I cannot find that in the document.'\n\n"
-                "--- CONTEXT ---\n{context}\n\n"
-                "--- QUESTION ---\n{question}"
-            )
-        ])
-
-        final_prompt = prompt_template.format_messages(
-            context=context_text,
-            question=user_question
-        )
-
-        # Step G: Call Groq API
+        # Step F: Direct Groq API Call
         with st.chat_message("assistant"):
             with st.spinner("Generating answer..."):
-                groq_model = ChatGroq(
-                    groq_api_key=groq_key,
-                    model=selected_model,
-                    temperature=0.1
+                prompt_content = (
+                    "You are a strict QA assistant. Answer the user question based ONLY on the provided context below.\n"
+                    "If the answer is not in the context, say 'I cannot find that in the document.'\n\n"
+                    f"--- CONTEXT ---\n{context_text}\n\n"
+                    f"--- QUESTION ---\n{user_question}"
                 )
-                response = groq_model.invoke(final_prompt)
-                st.write(response.content)
 
-        st.session_state.messages.append({"role": "assistant", "content": response.content})
+                chat_completion = groq_client.chat.completions.create(
+                    messages=[
+                        {"role": "user", "content": prompt_content}
+                    ],
+                    model=selected_model,
+                    temperature=0.1,
+                )
+
+                answer = chat_completion.choices[0].message.content
+                st.write(answer)
+
+        st.session_state.messages.append({"role": "assistant", "content": answer})
 
 else:
     st.info("Please upload a PDF file from the left sidebar to start.")
