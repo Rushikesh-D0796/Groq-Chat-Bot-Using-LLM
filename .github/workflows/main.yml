@@ -1,4 +1,5 @@
 name: Sync to Hugging Face hub
+
 on:
   push:
     branches: [main]
@@ -8,25 +9,14 @@ jobs:
   sync-to-hub:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
           lfs: true
 
-      - name: Set up git
-        run: |
-           git config user.email "action@github.com"
-           git config user.name "GitHub Action"
-
-      - name: Pull latest changes from Hugging Face
-        env:
-           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-            git remote add space https://Rudesh0796:$HF_TOKEN@huggingface.co/spaces/Rudesh0796/Groq-ChatBot-using-LLM main
-            git fetch space main
-            git merge space/main --allow-unrelated-histories --strategy-option=theirs
-        
-      - name: Push to hub
+      - name: Push to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push https://Rudesh0796:$HF_TOKEN@huggingface.co/spaces/Rudesh0796/Groq-ChatBot-using-LLM main
+        run: |
+          git push --force https://Rudesh0796:$HF_TOKEN@huggingface.co/spaces/Rudesh0796/Groq-ChatBot-using-LLM main:main
