@@ -8,36 +8,36 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 
-# 1. Safe Secret Key Management (Hugging Face Spaces + Streamlit Cloud + Local .env)
-load_dotenv()
-
-# Check os.environ first (Hugging Face Spaces and local .env)
-groq_key = os.getenv("GROQ_API_KEY")
-
-# Safe fallback for Streamlit Cloud without raising FileNotFoundError
-if not groq_key:
-    try:
-        if "GROQ_API_KEY" in st.secrets:
-            groq_key = st.secrets["GROQ_API_KEY"]
-    except Exception:
-        groq_key = None
-
+# 1. Page configuration MUST be the very first Streamlit call
 st.set_page_config(page_title="PDF QA Assistant", page_icon="📚")
 st.title("📚 PDF Question Answering with Groq")
 st.write("Upload a PDF file and ask any question from it!")
 
+# 2. Safe Secret Management (Hugging Face Spaces + Streamlit Cloud + Local .env)
+load_dotenv()
+
+# Check environment variables first (Hugging Face Spaces & local .env)
+groq_key = os.getenv("GROQ_API_KEY")
+
+# Safe check for Streamlit Community Cloud without raising FileNotFoundError
 if not groq_key:
-    st.error("GROQ_API_KEY not found! Please add it to your Hugging Face Space Secrets or local .env file.")
+    try:
+        groq_key = st.secrets.get("GROQ_API_KEY")
+    except Exception:
+        groq_key = None
+
+if not groq_key:
+    st.error("GROQ_API_KEY not found! Please configure it in your Space Settings > Variables and secrets.")
     st.stop()
 
-# 2. Cached HuggingFace Embeddings Model
+# 3. Cached HuggingFace Embeddings Model
 @st.cache_resource(show_spinner=False)
 def get_embedding_model():
     return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 embeddings = get_embedding_model()
 
-# 3. Model Selection
+# 4. Model Selection
 default_models = [
     "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
@@ -60,11 +60,11 @@ st.sidebar.header("Configuration")
 selected_model = st.sidebar.selectbox("Select Groq Model", options=model_list, index=0)
 uploaded_pdf = st.sidebar.file_uploader("Upload PDF file", type=["pdf"])
 
-# 4. Chat Session State
+# 5. Chat Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# 5. Process Uploaded PDF
+# 6. Process Uploaded PDF
 if uploaded_pdf is not None:
     temp_filename = "uploaded_document.pdf"
     with open(temp_filename, "wb") as f:
