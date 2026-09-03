@@ -12,6 +12,20 @@ jobs:
         with:
           fetch-depth: 0
           lfs: true
+
+      - name: Set up git
+        run: |
+           git config user.email "action@github.com"
+           git config user.name "GitHub Action"
+
+      - name: Pull latest changes from Hugging Face
+        env:
+           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+            git remote add space https://Rudesh0796:$HF_TOKEN@huggingface.co/spaces/Rudesh0796/Groq-ChatBot-using-LLM main
+            git fetch space main
+            git merge space/main --allow-unrelated-histories --strategy-option=theirs
+        
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
