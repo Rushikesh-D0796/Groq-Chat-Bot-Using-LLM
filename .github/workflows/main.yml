@@ -12,11 +12,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          lfs: true
+          fetch-depth: 1
 
-      - name: Push to Hugging Face
+      - name: Push clean commit to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git push --force https://Rudesh0796:$HF_TOKEN@huggingface.co/spaces/Rudesh0796/Groq-ChatBot-using-LLM main:main
+          # Reset local git history inside the runner to only the latest state
+          git checkout --orphan temp_branch
+          git add -A
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git commit -m "Deploy clean app without binary history"
+          git push --force https://Rudesh0796:$HF_TOKEN@huggingface.co/spaces/Rudesh0796/Groq-ChatBot-using-LLM temp_branch:main
